@@ -1,0 +1,5 @@
+color;blue green red purple teal yellow white
+status;on off
+&&
+color;blue
+status;off

@@ -1,0 +1,136 @@
+# ====================================================================
+# Auth: dodd
+# File: sentinel.txt
+# Revn: 05-10-2022  0.2
+# Func: jot down some ideas about what the hub is and how it works
+#
+# TODO:
+# ====================================================================
+# CHANGE LOG
+# --------------------------------------------------------------------
+# 04-27-2022: init
+# 05-10-2022: changed name from hub to sentinel
+#
+# ====================================================================
+
+
+elevator pitch:: execute a command in terminal
+                 terminal sends request to external hub device
+                 hub pings one or more homemade smarthome devices
+                 smarthome devices repond to hub
+                 hub sends information back to terminal
+                 terminal displays requested data
+
+idea:: filter network model
+"
+                       /----\  /----\
+                      /     v /     v
+                    |A|     |B|     |C|     ( but with more C nodes )
+                      ^     / ^     /
+                      \----/  \----/
+"
+
+       terminal program is node A
+       hub is node B
+       other devices are nodes C
+            cat feeder
+            ball lamp
+            door monitor
+            etc
+
+design::
+    how -> networking language
+           _python_ --> easy to write, will work
+                        moves challenge to the project
+           _c/c++_  --> segmentation fault (core dumped). pass
+           _golang_ --> will need to learn networks pretty well
+                        I'm already getting pretty good experience
+                        with golang tho
+           _rust_   --> can't even get the fucking syntax to highlight
+
+       everything important is going to need to be hardcoded? ports,
+       ip addresses
+
+       probably would want to be connection-oriented protocol
+       TCP/IP
+
+
+usage:: terminal commands
+        ask:: -> ask deviceC property
+              ==> send message to deviceC asking for status report
+                  on property
+              ==> fail gracefully if property doesnt exist for given
+                  device
+              --> ask cat-feeder fill      example command
+              --> cat-feeder.fill 50%      example response
+
+              --> ask ball-lamp soc        example command
+              --> ball-lamp.soc 20%        example response
+
+        tell:: -> tell deviceC command argument
+               ==> send message to deviceC instructing it to commit
+                   an action
+               ==> fail gracefully if command doesn't exist for
+                   device or if argument is invalid
+
+               --> tell door arm on        example command
+               --> door.arm on             example response
+
+               --> tell ball-lamp color blue       example command
+               --> ball-lamp.color blue            example response
+
+        list:: -> list [deviceC] -v
+               ==> return a list of devices (deviceC not specified)
+               ==> ping deviceC to see what properties it has and
+                   their direction
+               ==> including verbose -v flag shows devices and their
+                   properties
+               ==> including -v and a device is treated like only
+                   specifying the device
+
+               --> list                example command
+               --> door                example response
+                   ball-lamp
+                   cat-feeder
+                   office-light
+
+               --> list ball-lamp      example command
+               --> ball-lamp           example response
+                   \--^ on
+                   \--^ off
+                   \--^ color
+                       \-- white
+                       \-- red
+                       \-- green
+                       \-- blue
+                       \-- rainbow
+                   \--^ bright[ness]
+                       \-- [1 - 100]
+                   \--v soc
+                   \--v batt[ery]
+
+               --> list -v             example command
+               --> door                example response
+                   \--^ arm
+                   \--v status
+                   \--v soc
+                   \--v batt[ery]
+                   ball-lamp
+                   \--^ on
+                   \--^ off
+                   \--^ color
+                       \-- white
+                       \-- red
+                       \-- green
+                       \-- blue
+                       \-- rainbow
+                   \--^ bright[ness]
+                       \-- [1 - 100]
+                   \--v soc
+                   \--v batt[ery]
+                   (etc)
+
+        stats:: -> stats
+                ==> request statistics from all online devices
+                ===> uptime, battery, current status on all
+                     properties, en masse

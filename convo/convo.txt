@@ -1,0 +1,23 @@
+# ==============================================================================
+# Auth: Alex Celani
+# File: convo.txt
+# Revn: 05-10-2022  0.1
+# Func: elaborate on how the convo Golang networks programs should run
+#
+# TODO: create
+# ==============================================================================
+# CHANGE LOG
+# ------------------------------------------------------------------------------
+# 05-10-2022: init
+#
+# ==============================================================================
+
+
+uh
+
+just send a bunch of information back and forth
+
+A sends data to B, B receives, processes, and responds
+A receives, processes, and responds
+
+Repeat until some cutoff condition
