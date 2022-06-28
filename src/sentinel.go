@@ -1,11 +1,11 @@
 // =============================================================================
 // Auth: Alex Celani
-// File: messagerB.go
-// Revn: 05-10-2022  0.3
-// Func: Receive message, play with it, send to a third place, receive
-//       response, send off to first place
+// File: sentinel.go
+// Revn: 06-27-2022  1.3
+// Func: Receive message, determine recipient, forward, get response,
+//       forward back
 //
-// TODO: comment
+// TODO:
 // =============================================================================
 // CHANGE LOG
 // -----------------------------------------------------------------------------
@@ -13,17 +13,24 @@
 // 05-05-2022: commented
 // 05-10-2022: added argument 'n' to alter() for halving purposes
 //             changed passed value to alter()/forward() a slice
+// 06-20-2022: changed name to reflect first draft of sentinel.go
+//*06-22-2022: bug fixing and commenting
+// 06-23-2022: removed call to parse
+// 06-26-2022: refined a new route() function to check for destination
+//                  validity
+// 06-27-2022: added flag package
 //
 // =============================================================================
 
 package main
 
-import ( 
+import (
     "net"       // ResolveTCPAddr, DialTCP, conn.Write,Read,Close
                 // ListenTCP, listener.Accept
     "os"        // Exit, Stderr, Stdin, Args
     "fmt"       // Println, Fprintf
     "strings"   // ToLower, ToUpper
+    "flag"      // Parse, String, Bool
 )
 
 
@@ -38,14 +45,17 @@ func check( err error ){
 }
 
 
+// read the given message and route to the right endpoint
+func route( recv []string ) bool {
+    return recv[1] == "led"     // only option right now is led
+}
+
+
 // function to send message to third party and get response
-func quickSend( send string ) string {
-    // ip:port
-    // ip doesn't exist, implies localhost
-    service := ":1202"      // capture ip address and host
+func send( toSend string ) string {
 
     // "resolve" ip & host according to TCP rules
-    tcpAddr, err := net.ResolveTCPAddr( "tcp", service )
+    tcpAddr, err := net.ResolveTCPAddr( "tcp", *ip )
     check( err )    // check error
 
     // "dial" ( establish connection ) to destination ip & port
@@ -57,7 +67,7 @@ func quickSend( send string ) string {
     defer conn.Close()  // barring any error, still close connection
 
     // convert user input to bytes and send over connection
-    _, err = conn.Write( []byte( send ) )
+    _, err = conn.Write( []byte( toSend ) )
     check( err )    // check error
 
     var buf [512]byte                   // init byte array
@@ -68,21 +78,6 @@ func quickSend( send string ) string {
     check( err )    // check error
 
     return string( buf[:n] )        // return only written bytes
-}
-
-
-// function to change received message before passing it along
-func alter( recv []byte, n int ) string {
-    var send string = string( recv[:n/2] )
-    send = strings.ToUpper( send )
-    fmt.Println( "to c: ", send )
-    return send
-}
-
-
-// function to convert message to string before forwarding
-func forward( recv []byte ) string {
-    return string( recv[:] )
 }
 
 
@@ -100,20 +95,31 @@ func handleClient( conn net.Conn ) {
             return      // function so it can start again later
         }
 
-        // print recv'd message
-        // string() only works on byte SLICES so [:] is required
-        fmt.Println( "recv: ", string( buf[:] ) )
+        // instantiate receipt variable
+        var recv string = string( buf[:n] )
 
-//        var send string = string( buf[:n/2] )
-//        send = strings.ToUpper( send )
+        if *verbose {        // print recv'd message
+            // string() only works on byte SLICES so [:] is required
+            fmt.Println( "recv: ", recv )
+        }
 
-        send := alter( buf[:], n )      // send message to get changed
-//        send := forward( buf[:] )
-        recv := quickSend( send )       // send message off
-        fmt.Println( "из c: ", recv )   // print response
+        keywords := strings.Split( recv, " " )
+
+        // parse the input in some way
+        var resp string             // declare response variable
+        if route( keywords ) {      // is destination valid?
+            resp = send( recv )     // send message and get response
+        // if user wants a list of endpoints
+        } else if keywords[1] == "list" {
+            resp = "led"            // return list of endpoints
+        }
+
+        if *verbose {
+            fmt.Println( "node: ", resp )   // print response
+        }
 
         // write that response back to original client
-        _, err = conn.Write( []byte( recv ) )
+        _, err = conn.Write( []byte( resp ) )
         if err != nil { // erroring on write will simply leave the
             return      // function so it can start again later
         }
@@ -121,14 +127,23 @@ func handleClient( conn net.Conn ) {
 }
 
 
+var (           // declare global variables for flag
+    ip *string
+    self *string
+    verbose *bool
+)
+
+
 func main() {
 
-    // ip:port
-    // ip doesn't exist, implies localhost
-    service := ":1201"      // capture ip address and host
+    // get flags for verbose, self ip and destination ip
+    verbose = flag.Bool( "v", false, "flag to print extra info" )
+    ip = flag.String( "ip", "192.168.1.169:1202", "end node ip and port" )
+    self = flag.String( "self", ":1201", "port of self" )
+    flag.Parse()        // parse
 
     // "resolve" ip & host according to TCP rules
-    tcpAddr, err := net.ResolveTCPAddr( "tcp", service )
+    tcpAddr, err := net.ResolveTCPAddr( "tcp", *self )
     check( err )    // check error
 
     // bind and "listen" to ip and port, according to tcp rules

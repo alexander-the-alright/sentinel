@@ -1,7 +1,7 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: led.go
-// Revn: 06-26-2022  1.2
+// Revn: 06-27-2022  1.3
 // Func: receive data as an endpoint, send response back to middleman
 //
 // TODO:
@@ -18,6 +18,7 @@
 //*06-22-2022: bug squashing and commenting
 // 06-23-2022: updated to produce three different colors
 // 06-26-2022: commented
+// 06-27-2022: added flag package
 //
 // =============================================================================
 
@@ -30,6 +31,7 @@ import (
     "fmt"       // Fprintf, Println
     "strings"   // ToLower
     "github.com/stianeikeland/go-rpio"      // talk to RasPi pins
+    "flag"      // Parse, String, Int, Bool
 )
 
 
@@ -66,9 +68,11 @@ func handleClient( conn net.Conn ) {
             return      // function so it can start again later
         }
 
-        // print recv'd message
-        // string() only works on byte SLICES so [:] is required
-        fmt.Println( "recv: ", string( buf[:n] ) )
+        if *verbose {
+            // print recv'd message
+            // string() only works on byte SLICES so [:] is required
+            fmt.Println( "recv: ", string( buf[:n] ) )
+        }
 
         // split command into words for ease of parsing
         command := strings.Split( string( buf[:n] ), " " )
@@ -146,7 +150,9 @@ func handleClient( conn net.Conn ) {
             os.Exit( 2 )        // exit in this case
         }
 
-        fmt.Println( "answer: ", resp )     // print response
+        if *verbose {
+            fmt.Println( "answer: ", resp )     // print response
+        }
 
         // write that response back to original client
         _, err = conn.Write( []byte( resp ) )
@@ -154,7 +160,9 @@ func handleClient( conn net.Conn ) {
             return      // function so it can start again later
         }
 
-        fmt.Println( "sent: ", resp )   // print response
+        if *verbose {
+            fmt.Println( "sent: ", resp )   // print response
+        }
     }
 }
 
@@ -167,13 +175,29 @@ var pinB rpio.Pin           // declare blue led pin
 var color string            // declare color variable
 var status string           // declare status variable
 
+var (       // declare flag variables
+    lr *int
+    lg *int
+    lb *int
+    verbose *bool
+    ip *string
+)
+
 
 func main() {
 
+    // declare command line input variables
+    lr = flag.Int( "lr", 11, "GPIO pin for red LED" )
+    lg = flag.Int( "lg", 9, "GPIO pin for green LED" )
+    lb = flag.Int( "lb", 25, "GPIO pin for blue LED" )
+    verbose = flag.Bool( "v", false, "verbose printing" )
+    ip = flag.String( "ip", ":1202", "ip and port of self" )
+    flag.Parse()
+
     // initialize pins to GPIO 11, 9, and 25
-    pinR = rpio.Pin( 11 )
-    pinG = rpio.Pin( 9 )
-    pinB = rpio.Pin( 25 )
+    pinR = rpio.Pin( *lr )
+    pinG = rpio.Pin( *lg )
+    pinB = rpio.Pin( *lb )
 
 	if err := rpio.Open(); err != nil {
         // on error, print error and exit
@@ -189,12 +213,8 @@ func main() {
 	pinG.Output()
 	pinB.Output()
 
-    // ip:port
-    // ip doesn't exist, implies localhost
-    service := ":1202"      // capture ip address and host
-
     // "resolve" ip & host according to TCP rules
-    tcpAddr, err := net.ResolveTCPAddr( "tcp", service )
+    tcpAddr, err := net.ResolveTCPAddr( "tcp", *ip )
     check( err )    // check error
 
     // bind and "listen" to ip and port, according to tcp rules
