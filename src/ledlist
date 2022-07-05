@@ -1,0 +1,8 @@
+color ^v
+       red
+       green
+       blue
+   status ^v
+       on
+       off
+   list v

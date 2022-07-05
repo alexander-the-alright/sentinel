@@ -1,7 +1,7 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: led.go
-// Revn: 06-27-2022  1.3
+// Revn: 07-04-2022  2.0
 // Func: receive data as an endpoint, send response back to middleman
 //
 // TODO:
@@ -19,19 +19,29 @@
 // 06-23-2022: updated to produce three different colors
 // 06-26-2022: commented
 // 06-27-2022: added flag package
+//             began work on wrapper functions for led
+// 06-28-2022: rewrote wrapper function for color, tell()
+// 06-29-2022: wrote wrapper function for status, ask()
+//             added /list/ to options in ask()
+//*07-04-2022: rewrote /color/ in tell() just a little bit, to work
+//                  common CATHODE ( so mad ) RGB leds
+//             added support for white, cyan, yellow, and magenta
+//             finished comments for tell() and ask() and even simple
+//                  parsing stuff in handleClient()
 //
 // =============================================================================
 
 package main
 
 import (
-    "net"       // ResolveTCPAddr, conn.Write,Read,Close
-                // ListenTCP, listener.Accept
-    "os"        // Args, Stderr, Exit
-    "fmt"       // Fprintf, Println
-    "strings"   // ToLower
+    "net"           // ResolveTCPAddr, conn.Write,Read,Close
+                    // ListenTCP, listener.Accept
+    "os"            // Args, Stderr, Exit
+    "fmt"           // Fprintf, Println
+    "strings"       // ToLower
     "github.com/stianeikeland/go-rpio"      // talk to RasPi pins
-    "flag"      // Parse, String, Int, Bool
+    "flag"          // Parse, String, Int, Bool
+    "io/ioutil"     // ReadFile
 )
 
 
@@ -46,11 +56,121 @@ func check( err error ) {
 }
 
 
-// parse incoming message, keep only second word
-func parse( recv string ) string {
-    // split message over spaces
-    keywords := strings.Split( recv, " " )
-    return keywords[1]      // return the second word
+// quick function to return LED fields
+func ask( comm []string ) string {
+
+    // declare response variable
+    var response string
+
+    // XXX this could be done with a map instead
+    // what is the first word?
+    switch comm[0] {
+        case "color":   // if user asks for color, get color
+            response = color
+        case "status":  // if user asks for status, get status
+            response = status
+        case "list":    // if user wants a list of fields
+            // open file containing fields
+            // XXX considering using this file to populate future map
+            file, err := ioutil.ReadFile( os.Args[0] + "list" )
+            check( err )    // check error
+            // cast entire file to string and make returnable
+            response = string( file )
+        default:        // if user asks for something unknown
+            response = "field unknown"
+    }
+
+    // return
+    return response
+
+}
+
+
+/*
+// quick function to make a rainbow
+func rainbow() {
+    for {
+        for r := 255; r >= 0; r-- {
+            
+        }
+        for g := 255; g >= 0; g-- {
+            
+        }
+        for b := 255; b >= 0; b-- {
+            
+        }
+    }
+}
+*/
+
+
+// quick function to change LED colors
+func tell( comm []string ) string {
+
+    // initiate all pins as off
+    pinR.High()
+    pinG.High()
+    pinB.High()
+
+    // declare response variable
+    var response string
+
+    // XXX this could be done with a map instead
+    // what is the first word?
+    switch comm[0] {
+        case "color":       // if user trying to change color
+            color = comm[1]     // set current color to input
+                                // FIXME on failure, this is wrong
+                                // is that ok?
+            response = color    // preemptively set response to color
+            status = "on"       // preemptively set status
+            switch comm[1] {
+                case "red":     // user wants red, turn red on
+                    pinR.Low()
+                case "green":   // user wants green, turn green on
+                    pinG.Low()
+                case "blue":    // user wants blue, turn blue on
+                    pinB.Low()
+                case "magenta": // user wants blue and red
+                    pinR.Low()
+                    pinB.Low()
+                case "yellow":  // user wants red and green
+                    pinR.Low()
+                    pinG.Low()
+                case "cyan":    // user wants blue and green
+                    pinB.Low()
+                    pinG.Low()
+                case "white":   // user wants all leds
+                    pinR.Low()
+                    pinG.Low()
+                    pinB.Low()
+                case "rainbow": // user wants a loop
+                    // go rainbow()
+                    response = "not yet implemented"
+                default:        // user asks for else, bail out
+                    response = "color unknown"
+                    status = "off"
+            }
+        case "status":      // if user trying to change status
+            status = comm[1]    // preemptively set status
+            switch comm[1] {
+                case "on":      // if trying to turn led on
+                                // re enter function as if trying to
+                                // set current color
+                    response = tell( []string{ "color", color } )
+                case "off":     // leave leds off, set response to off
+                    response = comm[1]
+                default:        // user asks for else, bail out
+                    response = "status unknown"
+            }
+        case "kill":            // user wants to stop running
+            os.Exit( 2 )        // FIXME
+        default:            // user enters incorrect command
+            response = "command unknown"
+    }
+
+    return response
+
 }
 
 
@@ -81,76 +201,23 @@ func handleClient( conn net.Conn ) {
             os.Exit( 2 )            // if not, exit
         }
 
-        var resp string             // declare response variable
+        // TODO differentiate ask commands from tell commands
 
+        // initiate response variable
+        var resp string
 
-        // TODO convert to switches?
-        // len is 3 for "asK" commands
-        if len( command ) == 3 {
-            if command[2] == "color" {
-                // if user wants color, return color
-                resp = color
-            } else if command[2] == "status" {
-                // if user wants status, return status
-                resp = status
-            } else {
-                // there are only those two fields
-                resp = "usage unknown"
-            }
-        // len is 4 for tell commands
-        } else if len( command ) == 4 {
-            // if user wants to set color
-            if command[2] == "color" {
-                color = command[3]      // set current color
-                resp = color            // return current color
-                switch color {
-                    case "blue":        // does user want blue?
-                        // turn blue on, turn rest off
-                        pinB.High()
-                        pinR.Low()
-                        pinG.Low()
-                    case "red":         // does user want red?
-                        // turn red on, turn rest off
-                        pinB.Low()
-                        pinR.High()
-                        pinG.Low()
-                    case "green":       // does user want green?
-                        // turn green on, turn rest off
-                        pinB.Low()
-                        pinR.Low()
-                        pinG.High()
-                    default:            // color unknown
-                        // turn off
-                        pinB.Low()
-                        pinR.Low()
-                        pinG.Low()
-                }
-            // if user wants to set status
-            } else if command[2] == "status" {
-                status = command[3]     // set current status
-                resp = status           // return current status
-                switch status {
-                    case "on":          // does user want on?
-                        // default to red
-                        pinB.Low()
-                        pinR.High()
-                        pinG.Low()
-                    default:            // anything else, like off
-                        // default to off
-                        pinB.Low()
-                        pinR.Low()
-                        pinG.Low()
-                }
-            // user entered something else entirely
-            } else {
-                resp = "usage unknown"
-            }
-        // no other lengths are valid
-        } else {
-            os.Exit( 2 )        // exit in this case
+        switch command[0] {     // is user getting or setting?
+            case "ask":         // if getting
+                // get, store response in variable to be sent back
+                resp = ask( command[2:] )
+            case "tell":        // if setting
+                // set, store response in variable to be sent back
+                resp = tell( command[2:] )
+            default:            // if neither, bail out
+                resp = "command form unknown"
         }
 
-        if *verbose {
+        if *verbose {   // XXX verbose print
             fmt.Println( "answer: ", resp )     // print response
         }
 
@@ -160,7 +227,7 @@ func handleClient( conn net.Conn ) {
             return      // function so it can start again later
         }
 
-        if *verbose {
+        if *verbose {   // XXX identical verbose print
             fmt.Println( "sent: ", resp )   // print response
         }
     }
@@ -172,8 +239,8 @@ func handleClient( conn net.Conn ) {
 var pinR rpio.Pin           // declare red led pin
 var pinG rpio.Pin           // declare green led pin
 var pinB rpio.Pin           // declare blue led pin
-var color string            // declare color variable
-var status string           // declare status variable
+var color string = "red"    // declare color variable
+var status string = "off"   // declare status variable
 
 var (       // declare flag variables
     lr *int
