@@ -1,7 +1,7 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: colonel.go
-// Revn: 06-27-2022  1.2
+// Revn: 07-05-2022  2.0
 // Func: Send message to another machine and then receive a single
 //       response. Extremely tight bounds, not robust at all
 //
@@ -13,6 +13,7 @@
 //*06-20-2022: changed name to reflect first draft of colonel.go
 // 06-23-2022: made input an infinite loop
 // 06-27-2022: added flag package, assumed ip
+//*07-05-2022: added support for kill messages
 //
 // =============================================================================
 
@@ -86,6 +87,11 @@ func main() {
 
         // convert read bytes into string and print
         fmt.Println( "<<", string( buf[:n] ) )
+
+        // response is "kill" if user sends a kill message
+        if string( buf[:n] ) == "kill" {
+            os.Exit( 1 )
+        }
 
         if *verbose {
             fmt.Println( "\nrtt: ", t.Sub( start ) )    // print time

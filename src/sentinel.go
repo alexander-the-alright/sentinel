@@ -1,7 +1,7 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: sentinel.go
-// Revn: 06-27-2022  1.3
+// Revn: 07-06-2022  2.0
 // Func: Receive message, determine recipient, forward, get response,
 //       forward back
 //
@@ -19,6 +19,9 @@
 // 06-26-2022: refined a new route() function to check for destination
 //                  validity
 // 06-27-2022: added flag package
+// 07-05-2022: added support for kill messages
+//*07-06-2022: added support for mulitplexing multiple endpoints
+//                  so long as their name and ip is in /nodes/ file
 //
 // =============================================================================
 
@@ -31,6 +34,7 @@ import (
     "fmt"       // Println, Fprintf
     "strings"   // ToLower, ToUpper
     "flag"      // Parse, String, Bool
+    "io/ioutil" // ReadFile
 )
 
 
@@ -46,16 +50,20 @@ func check( err error ){
 
 
 // read the given message and route to the right endpoint
-func route( recv []string ) bool {
-    return recv[1] == "led"     // only option right now is led
+func route( recv []string ) string {
+
+    ip := nodes[recv[1]]    // get correlating ip to given node name
+
+    return ip
+
 }
 
 
 // function to send message to third party and get response
-func send( toSend string ) string {
+func send( toSend, ip string ) string {
 
     // "resolve" ip & host according to TCP rules
-    tcpAddr, err := net.ResolveTCPAddr( "tcp", *ip )
+    tcpAddr, err := net.ResolveTCPAddr( "tcp", ip )
     check( err )    // check error
 
     // "dial" ( establish connection ) to destination ip & port
@@ -103,15 +111,27 @@ func handleClient( conn net.Conn ) {
             fmt.Println( "recv: ", recv )
         }
 
+        // split message into separate words
         keywords := strings.Split( recv, " " )
 
         // parse the input in some way
         var resp string             // declare response variable
-        if route( keywords ) {      // is destination valid?
-            resp = send( recv )     // send message and get response
-        // if user wants a list of endpoints
-        } else if keywords[1] == "list" {
-            resp = "led"            // return list of endpoints
+
+        // if user wants list of endpoints
+        if keywords[1] == "list" {
+            // iterate over keys in maps ( endpoint names )
+            for key, _ := range nodes {
+                // collect keys, delimit with newline, in string
+                resp = resp + key + "\n"
+            }
+            // last char is newline, remove that
+            resp = resp[:len( resp ) - 1]
+        } else {    // user wants to send message
+            ip := route( keywords ) // find ip of node, if it exists
+            if ip == "" {           // if it doesn't exist
+                return
+            }
+            resp = send( recv, ip ) // send message, get response
         }
 
         if *verbose {
@@ -123,24 +143,57 @@ func handleClient( conn net.Conn ) {
         if err != nil { // erroring on write will simply leave the
             return      // function so it can start again later
         }
+
+        if resp == "kill" {     // if received kill message
+            os.Exit( 1 )        // kill process
+        }
+    }
+}
+
+
+// function to read in initialization data for nodes
+func initNodes() {
+
+    // open and read config file
+    file, err := ioutil.ReadFile( "nodes" )
+    check( err )    // error checking on read
+
+    // cast file to string, split string over newlines
+    node := strings.Split( string( file ), "\n" )
+
+    for i, kvp := range node {      // iterate over lines
+        // XXX for whatever reason, the EOF is seen as a newline?
+        // so this only works for all but the "last line"
+        if i != len( node ) - 1 {
+            // kvp is delimited by a bar, split over bar
+            // key is the name of the endpoint
+            // ip is the ip of the same endpoint
+            nameip := strings.Split( kvp, "|" )
+            // insert kvp into map
+            nodes[nameip[0]] = nameip[1]
+        }
     }
 }
 
 
 var (           // declare global variables for flag
-    ip *string
     self *string
     verbose *bool
 )
+
+// declare global variable to contain names and ips of endpoints
+var nodes = make( map[string]string )
 
 
 func main() {
 
     // get flags for verbose, self ip and destination ip
     verbose = flag.Bool( "v", false, "flag to print extra info" )
-    ip = flag.String( "ip", "192.168.1.169:1202", "end node ip and port" )
     self = flag.String( "self", ":1201", "port of self" )
     flag.Parse()        // parse
+
+    // read /nodes/ file and populate nodes map
+    initNodes()
 
     // "resolve" ip & host according to TCP rules
     tcpAddr, err := net.ResolveTCPAddr( "tcp", *self )
