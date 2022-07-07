@@ -1,7 +1,11 @@
 color ^v
-       red
-       green
        blue
+       cyan
+       green
+       magenta
+       red
+       white
+       yellow
    status ^v
        on
        off

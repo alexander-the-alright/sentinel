@@ -1,34 +1,14 @@
 // =============================================================================
 // Auth: Alex Celani
-// File: led.go
-// Revn: 07-05-2022  3.0
+// File: led2.go
+// Revn: 07-05-2022  1.0
 // Func: receive data as an endpoint, send response back to middleman
 //
-// TODO: implement rainbow
+// TODO:
 // =============================================================================
 // CHANGE LOG
 // -----------------------------------------------------------------------------
-// 05-04-2022: init
-// 05-09-2022: began commenting
-// 05-10-2022: finished commenting
-//             added alter() and forward()
-//             made passed value to alter()/forward() a slice
-//             changed refs to recv byte array to slice of n bytes
-// 06-20-2022: changed name to reflect first draft of node.go
-//*06-22-2022: bug squashing and commenting
-// 06-23-2022: updated to produce three different colors
-// 06-26-2022: commented
-// 06-27-2022: added flag package
-//             began work on wrapper functions for led
-// 06-28-2022: rewrote wrapper function for color, tell()
-// 06-29-2022: wrote wrapper function for status, ask()
-//             added /list/ to options in ask()
-//*07-04-2022: rewrote /color/ in tell() just a little bit, to work
-//                  common CATHODE ( so mad ) RGB leds
-//             added support for white, cyan, yellow, and magenta
-//             finished comments for tell() and ask() and even simple
-//                  parsing stuff in handleClient()
-//*07-05-2022: added support for kill messages
+//*07-05-2022: copied from led.go
 //
 // =============================================================================
 
@@ -66,8 +46,6 @@ func ask( comm []string ) string {
     // XXX this could be done with a map instead
     // what is the first word?
     switch comm[0] {
-        case "color":   // if user asks for color, get color
-            response = color
         case "status":  // if user asks for status, get status
             response = status
         case "list":    // if user wants a list of fields
@@ -87,31 +65,8 @@ func ask( comm []string ) string {
 }
 
 
-/*
-// quick function to make a rainbow
-func rainbow() {
-    for {
-        for r := 255; r >= 0; r-- {
-            
-        }
-        for g := 255; g >= 0; g-- {
-            
-        }
-        for b := 255; b >= 0; b-- {
-            
-        }
-    }
-}
-*/
-
-
 // quick function to change LED colors
 func tell( comm []string ) string {
-
-    // initiate all pins as off
-    pinR.High()
-    pinG.High()
-    pinB.High()
 
     // declare response variable
     var response string
@@ -119,48 +74,14 @@ func tell( comm []string ) string {
     // XXX this could be done with a map instead
     // what is the first word?
     switch comm[0] {
-        case "color":       // if user trying to change color
-            color = comm[1]     // set current color to input
-                                // FIXME on failure, this is wrong
-                                // is that ok?
-            response = color    // preemptively set response to color
-            status = "on"       // preemptively set status
-            switch comm[1] {
-                case "red":     // user wants red, turn red on
-                    pinR.Low()
-                case "green":   // user wants green, turn green on
-                    pinG.Low()
-                case "blue":    // user wants blue, turn blue on
-                    pinB.Low()
-                case "magenta": // user wants blue and red
-                    pinR.Low()
-                    pinB.Low()
-                case "yellow":  // user wants red and green
-                    pinR.Low()
-                    pinG.Low()
-                case "cyan":    // user wants blue and green
-                    pinB.Low()
-                    pinG.Low()
-                case "white":   // user wants all leds
-                    pinR.Low()
-                    pinG.Low()
-                    pinB.Low()
-                case "rainbow": // user wants a loop
-                    // go rainbow()
-                    response = "not yet implemented"
-                default:        // user asks for else, bail out
-                    response = "color unknown"
-                    status = "off"
-            }
         case "status":      // if user trying to change status
             status = comm[1]    // preemptively set status
+            response = status
             switch comm[1] {
                 case "on":      // if trying to turn led on
-                                // re enter function as if trying to
-                                // set current color
-                    response = tell( []string{ "color", color } )
+                    pinR.High()
                 case "off":     // leave leds off, set response to off
-                    response = comm[1]
+                    pinR.Low()
                 default:        // user asks for else, bail out
                     response = "status unknown"
             }
@@ -199,9 +120,11 @@ func handleClient( conn net.Conn ) {
         // split command into words for ease of parsing
         command := strings.Split( string( buf[:n] ), " " )
 
-        if command[1] != "led" {    // confirm message belongs here
+        if command[1] != "led2" {   // confirm message belongs here
             os.Exit( 2 )            // if not, exit
         }
+
+        // TODO differentiate ask commands from tell commands
 
         // initiate response variable
         var resp string
@@ -241,15 +164,10 @@ func handleClient( conn net.Conn ) {
 //var params = make( map[string]string )
 //var states = make( map[string]string )
 var pinR rpio.Pin           // declare red led pin
-var pinG rpio.Pin           // declare green led pin
-var pinB rpio.Pin           // declare blue led pin
-var color string = "red"    // declare color variable
 var status string = "off"   // declare status variable
 
 var (       // declare flag variables
-    lr *int
-    lg *int
-    lb *int
+    led *int
     verbose *bool
     ip *string
 )
@@ -258,17 +176,13 @@ var (       // declare flag variables
 func main() {
 
     // declare command line input variables
-    lr = flag.Int( "lr", 11, "GPIO pin for red LED" )
-    lg = flag.Int( "lg", 9, "GPIO pin for green LED" )
-    lb = flag.Int( "lb", 25, "GPIO pin for blue LED" )
+    led = flag.Int( "led", 24, "GPIO pin for red LED" )
     verbose = flag.Bool( "v", false, "verbose printing" )
-    ip = flag.String( "ip", ":1212", "ip and port of self" )
+    ip = flag.String( "ip", ":1203", "ip and port of self" )
     flag.Parse()
 
-    // initialize pins to GPIO 11, 9, and 25
-    pinR = rpio.Pin( *lr )
-    pinG = rpio.Pin( *lg )
-    pinB = rpio.Pin( *lb )
+    // initialize pins to GPIO 24
+    pinR = rpio.Pin( *led )
 
 	if err := rpio.Open(); err != nil {
         // on error, print error and exit
@@ -281,13 +195,9 @@ func main() {
 
 	// Set pins to output mode
 	pinR.Output()
-	pinG.Output()
-	pinB.Output()
 
     // Initialize output to "off"
     pinR.High()
-    pinG.High()
-    pinB.High()
 
     // "resolve" ip & host according to TCP rules
     tcpAddr, err := net.ResolveTCPAddr( "tcp", *ip )
