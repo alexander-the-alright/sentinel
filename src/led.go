@@ -89,24 +89,6 @@ func ask( comm []string ) string {
 }
 
 
-/*
-// quick function to make a rainbow
-func rainbow() {
-    for {
-        for r := 255; r >= 0; r-- {
-            
-        }
-        for g := 255; g >= 0; g-- {
-            
-        }
-        for b := 255; b >= 0; b-- {
-            
-        }
-    }
-}
-*/
-
-
 // quick function to change LED colors
 func tell( comm []string ) string {
 
@@ -147,9 +129,6 @@ func tell( comm []string ) string {
                     pinR.Low()
                     pinG.Low()
                     pinB.Low()
-                case "rainbow": // user wants a loop
-                    // go rainbow()
-                    response = "not yet implemented"
                 default:        // user asks for else, bail out
                     response = "color unknown"
                     status = "off"
@@ -201,7 +180,7 @@ func handleClient( conn net.Conn ) {
         // split command into words for ease of parsing
         command := strings.Split( string( buf[:n] ), " " )
 
-        if command[1] != "led" {    // confirm message belongs here
+        if command[1] != "piled" {  // confirm message belongs here
             os.Exit( 2 )            // if not, exit
         }
 
