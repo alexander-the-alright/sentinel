@@ -88,13 +88,13 @@ func main() {
         // convert read bytes into string and print
         fmt.Println( "<<", string( buf[:n] ) )
 
+        if *verbose {
+            fmt.Println( "\nrtt: ", t.Sub( start ) )    // print time
+        }
+
         // response is "kill" if user sends a kill message
         if string( buf[:n] ) == "kill" {
             os.Exit( 1 )
-        }
-
-        if *verbose {
-            fmt.Println( "\nrtt: ", t.Sub( start ) )    // print time
         }
     }
 
