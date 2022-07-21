@@ -1,11 +1,12 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: sentinel.go
-// Revn: 07-06-2022  2.0
+// Revn: 07-14-2022  3.0
 // Func: Receive message, determine recipient, forward, get response,
 //       forward back
 //
-// TODO:
+// TODO: add time flag
+//       use tail command line args to send single message and quit
 // =============================================================================
 // CHANGE LOG
 // -----------------------------------------------------------------------------
@@ -22,6 +23,10 @@
 // 07-05-2022: added support for kill messages
 //*07-06-2022: added support for mulitplexing multiple endpoints
 //                  so long as their name and ip is in /nodes/ file
+// 07-11-2022: added solo mode and flag
+//             changed how list works
+// 07-12-2022: comments
+//*07-14-2022: changed input/output prompt to arrow
 //
 // =============================================================================
 
@@ -35,7 +40,17 @@ import (
     "strings"   // ToLower, ToUpper
     "flag"      // Parse, String, Bool
     "io/ioutil" // ReadFile
+    "bufio"     // input()
 )
+
+
+// quick function to take user input
+func input( ps1 string ) string {
+    fmt.Print( ps1 )                            // print prompt
+    scanner := bufio.NewScanner( os.Stdin )     // link to stdin
+    scanner.Scan()                              // pull data
+    return strings.ToLower( scanner.Text() )    // return lower text
+}
 
 
 // quick error checking
@@ -51,11 +66,8 @@ func check( err error ){
 
 // read the given message and route to the right endpoint
 func route( recv []string ) string {
-
     ip := nodes[recv[1]]    // get correlating ip to given node name
-
     return ip
-
 }
 
 
@@ -89,6 +101,64 @@ func send( toSend, ip string ) string {
 }
 
 
+// parse input, send to node, return response
+func forward( recv string ) string {
+
+    // break commands into words
+    keywords := strings.Split( recv, " " )
+    length := len( keywords )   // store length for later use
+
+    // declare return variable
+    var resp string
+
+    if length == 1 {                // if length of input is only 1
+        if keywords[0] == "list" {  // command better be /list/
+            var i int = 0       // var to keep track of iterations
+            // iterate over keys in map to get list of node names
+            for name, _ := range nodes {
+                if i != 0 {
+                    // do not prepend spaces to first node
+                    resp = resp + "   "
+                }
+                resp = resp + name + "\n"   // append node name
+                i++             // keep track of iterations
+            }
+            resp = resp[:len( resp ) - 1]   // remove last newline
+        } else {                    // command is not /list/, ergo
+                                    // not supported
+            resp = "command unrecognized"
+        }
+    } else if length > 1 {          // command is more than one word
+        // user wants a comprehensive list of nodes and fields
+        if keywords[0] == "list" && keywords[1] == "-v" {
+            // iterate over all nodes
+            for name, addr := range nodes {
+                // add name, ip, newline, and justifying spaces
+                resp = resp + name + " --> " + addr + "\n   "
+                // send command /list/ to node
+                resp = resp + send( "list " + name, addr )
+                // add newline and justifying spaces
+                resp = resp + "\n   "
+            }
+            // remove trailing newline and spaces
+            resp = resp[:len( resp ) - 4]
+        } else {        // user wants a different command
+            ip := route( keywords )     // find appropriate ip
+            if ip == "" {               // ip not found, node DNE
+                resp = "node unrecognized"  // print error
+            } else {    // node does exist
+                // send message to node, get response
+                resp = send( recv, ip )
+            }
+        }
+    } else {        // length of command was 0
+        resp = "command unrecognized"
+    }
+
+    return resp     // return response
+}
+
+
 // function to handle incoming connections
 func handleClient( conn net.Conn ) {
     defer conn.Close()  // barring any error, still close connection
@@ -111,32 +181,8 @@ func handleClient( conn net.Conn ) {
             fmt.Println( "recv: ", recv )
         }
 
-        // split message into separate words
-        keywords := strings.Split( recv, " " )
-
-        // parse the input in some way
-        var resp string             // declare response variable
-
-        // if user wants list of endpoints
-        if keywords[1] == "list" {
-            // iterate over keys in maps ( endpoint names )
-            for key, _ := range nodes {
-                // collect keys, delimit with newline, in string
-                resp = resp + key + "\n"
-            }
-            // last char is newline, remove that
-            resp = resp[:len( resp ) - 1]
-        } else {    // user wants to send message
-            ip := route( keywords ) // find ip of node, if it exists
-            if ip == "" {           // if it doesn't exist
-                return
-            }
-            resp = send( recv, ip ) // send message, get response
-        }
-
-        if *verbose {
-            fmt.Println( "node: ", resp )   // print response
-        }
+        // parse input, send out to node, get response
+        resp := forward( recv )
 
         // write that response back to original client
         _, err = conn.Write( []byte( resp ) )
@@ -179,6 +225,7 @@ func initNodes() {
 var (           // declare global variables for flag
     self *string
     verbose *bool
+    solo *bool
 )
 
 // declare global variable to contain names and ips of endpoints
@@ -190,12 +237,20 @@ func main() {
     // get flags for verbose, self ip and destination ip
     verbose = flag.Bool( "v", false, "flag to print extra info" )
     self = flag.String( "self", ":1201", "port of self" )
+    solo = flag.Bool( "s", false, "run sentinel in solo mode" )
     flag.Parse()        // parse
 
     // read /nodes/ file and populate nodes map
     initNodes()
 
-    // "resolve" ip & host according to TCP rules
+    if *solo {      // if user requested stand-alone action
+        for {       // iterate forever ( until user quits )
+            in := input( "-> " )        // print prompt, take input
+            resp := forward( in )       // forward directly to node
+            fmt.Println( "<-", resp )   // print response
+        }
+    }
+
     tcpAddr, err := net.ResolveTCPAddr( "tcp", *self )
     check( err )    // check error
 
