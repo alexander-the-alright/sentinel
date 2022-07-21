@@ -1,8 +1,9 @@
 // =============================================================================
 // Auth: Alex Celani
 // File: led.go
-// Revn: 07-05-2022  3.0
+// Revn: 07-11-2022  4.0
 // Func: receive data as an endpoint, send response back to middleman
+//       ONLY A SIMULATION FOR THE REAL THING
 //
 // TODO: implement rainbow
 // =============================================================================
@@ -29,6 +30,7 @@
 //             finished comments for tell() and ask() and even simple
 //                  parsing stuff in handleClient()
 //*07-05-2022: added support for kill messages
+//*07-11-2022: added /list/ as field that calls ask()
 //
 // =============================================================================
 
@@ -210,6 +212,9 @@ func handleClient( conn net.Conn ) {
             case "ask":         // if getting
                 // get, store response in variable to be sent back
                 resp = ask( command[2:] )
+            case "list":        // is user getting list?
+                // get, store response in variable to be sent back
+                resp = ask( command )
             case "tell":        // if setting
                 // set, store response in variable to be sent back
                 resp = tell( command[2:] )
